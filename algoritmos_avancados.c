@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// ----------------------------------------------------
+// Struct Sala (nó da árvore da mansão)
+// ----------------------------------------------------
 typedef struct Sala {
     char nome[40];
     struct Sala *esquerda;
@@ -9,98 +12,142 @@ typedef struct Sala {
 } Sala;
 
 // ----------------------------------------------------
-// Protótipos das funções
+// Struct PistaNode (nó da árvore de pistas - BST)
+// Cada nó contém o texto de uma pista e ponteiros
+// para esquerda e direita.
+// ----------------------------------------------------
+typedef struct PistaNode {
+    char texto[100];
+    struct PistaNode *esq;
+    struct PistaNode *dir;
+} PistaNode;
+
+// ----------------------------------------------------
+// Protótipos das funções relacionadas às salas
 // ----------------------------------------------------
 Sala* criarSala(const char* nome);
-void conectarSalas(Sala* pai, Sala* esquerda, Sala* direita);
-void explorarSalas(Sala* raiz);
-void liberarArvore(Sala* raiz);
+void explorarSalas(Sala* raiz, PistaNode** arvorePistas);
+void liberarArvoreSalas(Sala* raiz);
 
+// ----------------------------------------------------
+// Protótipos das funções relacionadas às pistas (BST)
+// ----------------------------------------------------
+PistaNode* inserirPistaBST(PistaNode* raiz, const char* texto);
+void inserirPista(PistaNode** raiz, const char* texto);
+void emOrdem(PistaNode* raiz);
+void listarPistas(PistaNode* raiz);
+void liberarArvorePistas(PistaNode* raiz);
+
+// Função auxiliar: coleta pista ao entrar em certas salas
+void coletarPistaNaSala(Sala* sala, PistaNode** arvorePistas);
+
+// ====================================================
+//                         MAIN
+// ====================================================
 int main(void) {
-    // Criação dos nós da árvore
+    // Montagem do mapa da mansão
 
-    Sala* hall        = criarSala("Hall de Entrada");
-    Sala* biblioteca  = criarSala("Biblioteca");
-    Sala* cozinha     = criarSala("Cozinha");
-    Sala* escritorio  = criarSala("Escritorio");
-    Sala* salaSecreta = criarSala("Sala Secreta");
-    Sala* despensa    = criarSala("Despensa");
-    Sala* sotao       = criarSala("Sotao");
+    Sala* hall         = criarSala("Hall de Entrada");
+    Sala* salaEstar    = criarSala("Sala de Estar");
+    Sala* cozinha      = criarSala("Cozinha");
+    Sala* biblioteca   = criarSala("Biblioteca");
+    Sala* jardim       = criarSala("Jardim");
+    Sala* despensa     = criarSala("Despensa");
+    Sala* garagem      = criarSala("Garagem");
 
-    // Conectando as salas na estrutura de árvore binária
-    conectarSalas(hall, biblioteca, cozinha);
-    conectarSalas(biblioteca, escritorio, salaSecreta);
-    conectarSalas(cozinha, despensa, sotao);
-    conectarSalas(escritorio, NULL, NULL);
-    conectarSalas(salaSecreta, NULL, NULL);
-    conectarSalas(despensa, NULL, NULL);
-    conectarSalas(sotao, NULL, NULL);
+    // Ligando os ponteiros (criando a árvore binária)
+    hall->esquerda      = salaEstar;
+    hall->direita       = cozinha;
 
-    // Iniciar exploração a partir do Hall de Entrada
-    explorarSalas(hall);
+    salaEstar->esquerda = biblioteca;
+    salaEstar->direita  = jardim;
 
-    // Liberar memória da árvore (opcional, mas boa prática)
-    liberarArvore(hall);
+    cozinha->esquerda   = despensa;
+    cozinha->direita    = garagem;
+
+    biblioteca->esquerda = NULL;
+    biblioteca->direita  = NULL;
+
+    jardim->esquerda = NULL;
+    jardim->direita  = NULL;
+
+    despensa->esquerda = NULL;
+    despensa->direita  = NULL;
+
+    garagem->esquerda = NULL;
+    garagem->direita  = NULL;
+
+    // Raiz da árvore de pistas começa vazia
+    PistaNode* arvorePistas = NULL;
+
+    // Inicia exploração a partir do Hall de Entrada
+    explorarSalas(hall, &arvorePistas);
+
+    // Ao final, mostra todas as pistas coletadas
+    printf("\n=== RESUMO DAS PISTAS COLETADAS ===\n");
+    listarPistas(arvorePistas);
+
+    // Libera memórias
+    liberarArvoreSalas(hall);
+    liberarArvorePistas(arvorePistas);
 
     return 0;
 }
 
-// ----------------------------------------------------
-// criarSala
-//  - Aloca dinamicamente uma nova sala
-//  - Copia o nome informado
-//  - Inicializa os ponteiros esquerda/direita com NULL
-// ----------------------------------------------------
+// ====================================================
+//            IMPLEMENTAÇÃO - ÁRVORE DE SALAS
+// ====================================================
+
+// criarSala()
+//  - Cria dinamicamente uma sala da mansão.
+//  - Copia o nome informado e zera ponteiros esquerda/direita.
 Sala* criarSala(const char* nome) {
     Sala* nova = (Sala*)malloc(sizeof(Sala));
-    if (!nova) {
+    if (nova == NULL) {
         printf("Erro ao alocar memoria para a sala.\n");
         exit(1);
     }
+
     strncpy(nova->nome, nome, sizeof(nova->nome));
     nova->nome[sizeof(nova->nome) - 1] = '\0';
+
     nova->esquerda = NULL;
     nova->direita  = NULL;
     return nova;
 }
 
-// ----------------------------------------------------
-// conectarSalas
-//  - Define quais salas ficam à esquerda e à direita
-//    de uma sala pai.
-// ----------------------------------------------------
-void conectarSalas(Sala* pai, Sala* esquerda, Sala* direita) {
-    if (pai == NULL) return;
-    pai->esquerda = esquerda;
-    pai->direita  = direita;
-}
-
-// ----------------------------------------------------
-// explorarSalas
-//  - Permite que o jogador navegue pela árvore da mansão.
-//  - Controles:
-//        e -> ir para a sala à esquerda
-//        d -> ir para a sala à direita
-//        s -> sair da exploração
-//  - Exibe o nome da sala a cada movimento.
-// ----------------------------------------------------
-void explorarSalas(Sala* raiz) {
-    Sala* atual = raiz;
-    char comando;
-
-    if (atual == NULL) {
+// explorarSalas()
+//  - Permite a navegação do jogador pela árvore de salas.
+//  - Comandos:
+//       'e' -> ir para a sala à esquerda
+//       'd' -> ir para a sala à direita
+//       'p' -> listar pistas coletadas até o momento
+//       's' -> sair da mansão
+//  - Ao entrar em certas salas, coleta automaticamente uma pista.
+void explorarSalas(Sala* raiz, PistaNode** arvorePistas) {
+    if (raiz == NULL) {
         printf("Nao ha salas na mansao.\n");
         return;
     }
 
-    printf("\n=== DETECTIVE QUEST - EXPLORACAO DA MANSAO ===\n");
-    printf("Use 'e' (esquerda), 'd' (direita) e 's' (sair).\n\n");
+    Sala* atual = raiz;
+    char comando;
 
-    do {
-        // Exibe sala atual
+    printf("\n=== DETECTIVE QUEST - EXPLORACAO DA MANSAO ===\n");
+    printf("Comandos:\n");
+    printf("  e - ir para a esquerda\n");
+    printf("  d - ir para a direita\n");
+    printf("  p - revisar pistas coletadas\n");
+    printf("  s - sair da mansao\n\n");
+
+    while (1) {
+        // Exibe a sala atual
         printf("Voce esta em: %s\n", atual->nome);
 
-        // Indica caminhos disponíveis a partir da sala atual
+        // Ao entrar na sala atual, coleta pista se existir para ela
+        coletarPistaNaSala(atual, arvorePistas);
+
+        // Caminhos disponíveis
         printf("Caminhos disponiveis:\n");
         if (atual->esquerda != NULL) {
             printf("  e - Ir para a esquerda (%s)\n", atual->esquerda->nome);
@@ -114,66 +161,150 @@ void explorarSalas(Sala* raiz) {
             printf("  d - (nenhuma sala a direita)\n");
         }
 
+        printf("Outras opcoes:\n");
+        printf("  p - Revisar pistas coletadas\n");
         printf("  s - Sair da mansao\n");
-        printf("Escolha (e/d/s): ");
+
+        printf("Escolha (e/d/p/s): ");
         if (scanf(" %c", &comando) != 1) {
-            return;
+            printf("\nEntrada invalida. Encerrando.\n");
+            break;
         }
-
-        switch (comando) {
-            case 'e':
-            case 'E':
-                if (atual->esquerda != NULL) {
-                    atual = atual->esquerda;
-                } else {
-                    printf(">> Nao ha sala a esquerda daqui.\n");
-                }
-                break;
-
-            case 'd':
-            case 'D':
-                if (atual->direita != NULL) {
-                    atual = atual->direita;
-                } else {
-                    printf(">> Nao ha sala a direita daqui.\n");
-                }
-                break;
-
-            case 's':
-            case 'S':
-                printf("\nVoce decidiu encerrar a exploracao da mansao.\n");
-                break;
-
-            default:
-                printf("Comando invalido. Use 'e', 'd' ou 's'.\n");
-        }
-
         printf("\n");
 
-    } while (comando != 's' && comando != 'S');
+        if (comando == 's' || comando == 'S') {
+            printf("Voce decidiu encerrar a exploracao.\n");
+            break;
+        } else if (comando == 'p' || comando == 'P') {
+            listarPistas(*arvorePistas);
+        } else if (comando == 'e' || comando == 'E') {
+            if (atual->esquerda != NULL) {
+                atual = atual->esquerda;
+            } else {
+                printf("Nao ha sala a esquerda daqui. Tente outro caminho.\n\n");
+            }
+        } else if (comando == 'd' || comando == 'D') {
+            if (atual->direita != NULL) {
+                atual = atual->direita;
+            } else {
+                printf("Nao ha sala a direita daqui. Tente outro caminho.\n\n");
+            }
+        } else {
+            printf("Comando invalido. Use 'e', 'd', 'p' ou 's'.\n\n");
+        }
+
+        // Se a sala atual for folha (sem esquerda e direita), informamos
+        if (atual->esquerda == NULL && atual->direita == NULL) {
+            printf("Voce chegou a um comodo sem mais caminhos (%s).\n", atual->nome);
+            printf("Use 'p' para revisar as pistas ou 's' para sair.\n\n");
+        }
+    }
 }
 
-// ----------------------------------------------------
-// liberarArvore
-//  - Libera recursivamente todos os nós (salas) da árvore.
-// ----------------------------------------------------
-void liberarArvore(Sala* raiz) {
-    if (raiz == NULL) return;
-    liberarArvore(raiz->esquerda);
-    liberarArvore(raiz->direita);
+// liberarArvoreSalas()
+//  - Libera a memória de todos os nós da árvore de salas (recursivo).
+void liberarArvoreSalas(Sala* raiz) {
+    if (raiz == NULL) {
+        return;
+    }
+    liberarArvoreSalas(raiz->esquerda);
+    liberarArvoreSalas(raiz->direita);
     free(raiz);
 }
 
-    // 🔍 Nível Aventureiro: Armazenamento de Pistas com Árvore de Busca
-    //
-    // - Crie uma struct Pista com campo texto (string).
-    // - Crie uma árvore binária de busca (BST) para inserir as pistas coletadas.
-    // - Ao visitar salas específicas, adicione pistas automaticamente com inserirBST().
-    // - Implemente uma função para exibir as pistas em ordem alfabética (emOrdem()).
-    // - Utilize alocação dinâmica e comparação de strings (strcmp) para organizar.
-    // - Não precisa remover ou balancear a árvore.
-    // - Use funções para modularizar: inserirPista(), listarPistas().
-    // - A árvore de pistas deve ser exibida quando o jogador quiser revisar evidências.
+// ====================================================
+//       IMPLEMENTAÇÃO - ÁRVORE DE PISTAS (BST)
+// ====================================================
+
+// inserirPistaBST()
+//  - Insere uma nova pista em uma árvore de busca binária.
+//  - Organização alfabética pelo texto da pista (strcmp).
+//  - Não insere duplicatas (se texto igual já existir).
+PistaNode* inserirPistaBST(PistaNode* raiz, const char* texto) {
+    if (raiz == NULL) {
+        PistaNode* novo = (PistaNode*)malloc(sizeof(PistaNode));
+        if (novo == NULL) {
+            printf("Erro ao alocar memoria para a pista.\n");
+            exit(1);
+        }
+        strncpy(novo->texto, texto, sizeof(novo->texto));
+        novo->texto[sizeof(novo->texto) - 1] = '\0';
+        novo->esq = NULL;
+        novo->dir = NULL;
+        return novo;
+    }
+
+    int cmp = strcmp(texto, raiz->texto);
+    if (cmp < 0) {
+        raiz->esq = inserirPistaBST(raiz->esq, texto);
+    } else if (cmp > 0) {
+        raiz->dir = inserirPistaBST(raiz->dir, texto);
+    } else {
+        // cmp == 0 -> pista já existe, não insere duplicata
+    }
+    return raiz;
+}
+
+// inserirPista()
+//  - Função de conveniência: recebe &raiz e chama inserirPistaBST.
+void inserirPista(PistaNode** raiz, const char* texto) {
+    *raiz = inserirPistaBST(*raiz, texto);
+}
+
+// emOrdem()
+//  - Percorre a BST em ordem (esq, raiz, dir),
+//    exibindo as pistas em ordem alfabética.
+void emOrdem(PistaNode* raiz) {
+    if (raiz == NULL) return;
+    emOrdem(raiz->esq);
+    printf("- %s\n", raiz->texto);
+    emOrdem(raiz->dir);
+}
+
+// listarPistas()
+//  - Exibe todas as pistas já coletadas, em ordem alfabética.
+void listarPistas(PistaNode* raiz) {
+    printf("\n--- PISTAS COLETADAS ---\n");
+    if (raiz == NULL) {
+        printf("Nenhuma pista coletada ate o momento.\n\n");
+        return;
+    }
+    emOrdem(raiz);
+    printf("------------------------\n\n");
+}
+
+// liberarArvorePistas()
+//  - Libera recursivamente todos os nós da BST de pistas.
+void liberarArvorePistas(PistaNode* raiz) {
+    if (raiz == NULL) return;
+    liberarArvorePistas(raiz->esq);
+    liberarArvorePistas(raiz->dir);
+    free(raiz);
+}
+
+// coletarPistaNaSala()
+//  - Associa algumas salas a pistas específicas.
+//  - Quando o jogador entra na sala, a pista é inserida na BST.
+//  - Se a pista já existir, nada muda (por causa da lógica da BST).
+void coletarPistaNaSala(Sala* sala, PistaNode** arvorePistas) {
+    if (sala == NULL) return;
+
+    // Exemplo de associação simples de sala -> pista:
+    if (strcmp(sala->nome, "Biblioteca") == 0) {
+        inserirPista(arvorePistas, "Paginas rasgadas de um diario na Biblioteca.");
+        printf("Voce encontrou uma pista na Biblioteca!\n");
+    } else if (strcmp(sala->nome, "Cozinha") == 0) {
+        inserirPista(arvorePistas, "Faca com manchas suspeitas na Cozinha.");
+        printf("Voce encontrou uma pista na Cozinha!\n");
+    } else if (strcmp(sala->nome, "Jardim") == 0) {
+        inserirPista(arvorePistas, "Pegadas recentes no Jardim molhado.");
+        printf("Voce encontrou uma pista no Jardim!\n");
+    } else if (strcmp(sala->nome, "Garagem") == 0) {
+        inserirPista(arvorePistas, "Carro com motor quente na Garagem.");
+        printf("Voce encontrou uma pista na Garagem!\n");
+    }
+    // Demais salas podem não ter pista associada.
+}
 
     // 🧠 Nível Mestre: Relacionamento de Pistas com Suspeitos via Hash
     //
@@ -187,3 +318,5 @@ void liberarArvore(Sala* raiz) {
     // - Para hashing simples, pode usar soma dos valores ASCII do nome ou primeira letra.
     // - Em caso de colisão, use lista encadeada para tratar.
     // - Modularize com funções como inicializarHash(), buscarSuspeito(), listarAssociacoes().
+
+
